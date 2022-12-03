@@ -31,7 +31,8 @@ mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
 const userScheme = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: Array
 });
 
 userScheme.plugin(passportLocalMongoose);
@@ -94,16 +95,69 @@ app.get("/register", function (req, res) {
 });
 
 app.get("/secrets", function (req, res) {
-    res.set(
-        'Cache-Control',
-        'no-cache, private, no-store, must-revalidate, max-stal e=0, post-check=0, pre-check=0'
-    );
     if (req.isAuthenticated()) {
-        res.render("secrets");
+        User.find({"secret": {$ne: null}}, function (err, foundUsers) {
+            if (err) {
+                console.log(err);
+            } else {
+                if (foundUsers) {
+                    res.render("secrets", {usersWithSecrets: foundUsers});
+                }
+            }
+        });
     } else {
         res.redirect("/login");
     }
-})
+    // res.set(
+    //     'Cache-Control',
+    //     'no-cache, private, no-store, must-revalidate, max-stal e=0, post-check=0, pre-check=0'
+    // );
+    // if (req.isAuthenticated()) {
+    //     res.render("secrets");
+    // } else {
+    //     res.redirect("/login");
+    // }
+});
+
+app.get("/submit", function (req, res) {
+    if (req.isAuthenticated()) {
+        User.findById(req.user.id,function (err,foundUser){
+            if(!err){
+                res.render("submit",{secrets:foundUser.secret});
+            }
+        });
+    } else {
+        res.redirect("/login");
+    }
+});
+
+app.post("/submit", function (req, res) {
+    if (req.isAuthenticated()) {
+        User.findById(req.user.id, function (err,foundUser) {
+            foundUser.secret.push(req.body.secret);
+            foundUser.save(function () {
+                res.redirect("/secrets");
+            });
+        });
+    } else {
+        res.redirect("/login");
+    }
+});
+
+app.post("/submit/delete",function (req, res){
+    if(req.isAuthenticated()){
+        User.findById(req.user.id, function (err, foundUser){
+            foundUser.secret.splice(foundUser.secret.indexOf(req.body.secret),1);
+            foundUser.save(function (err) {
+                if(!err){
+                    res.redirect("/secrets");
+                }
+            });
+        });
+    }else {
+        res.redirect("/login");
+    }
+});
 
 app.get("/logout", function (req, res, next) {
     req.logout(function(err) {
